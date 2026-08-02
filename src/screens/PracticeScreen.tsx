@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
 import { Profile, OperationKey, QuestionResult, SessionSummary, Technique } from "../types";
-import { LADDERS, rungIndexForRating, OPERATION_META } from "../ladders";
+import { LADDERS, rungIndexForRating, clampRung, OPERATION_META } from "../ladders";
 import { generateQuestion, classifyError, GeneratedQuestion } from "../questions";
 import { deltaForAnswer, applyDelta } from "../rating";
 import { suggestionForMiss, suggestionForNewRung } from "../techniques";
@@ -15,9 +15,10 @@ interface Props {
   operationKey: OperationKey;
   isVedic?: boolean;
   vedicRungIndex?: number; // when drilling a technique from Learn
+  onProfileChange: (updatedProfile: Profile) => void; // incremental save, per question
   onFinish: (summary: SessionSummary, updatedProfile: Profile) => void;
   onOpenTechnique: (t: Technique) => void;
-  onQuit: () => void;
+  onQuit: (updatedProfile: Profile) => void;
 }
 
 export default function PracticeScreen(props: Props) {
@@ -26,8 +27,11 @@ export default function PracticeScreen(props: Props) {
   const startRating = isVedic ? profile.vedicRating : profile.ratings[operationKey];
 
   const [rating, setRating] = useState(startRating);
+  // Pinned at mount: the profile prop now changes mid-session (we save after every
+  // question), so reading `startRating` live would make the results delta read 0.
+  const startRatingRef = useRef(startRating);
   const startRungRef = useRef(
-    props.vedicRungIndex ?? rungIndexForRating(operationKey, startRating)
+    clampRung(operationKey, props.vedicRungIndex ?? rungIndexForRating(operationKey, startRating))
   );
   const rung = LADDERS[operationKey][startRungRef.current];
 
@@ -42,24 +46,37 @@ export default function PracticeScreen(props: Props) {
   const questionStart = useRef(Date.now());
   const profileRef = useRef<Profile>({ ...profile, shields: { ...profile.shields } });
 
+  // Guards against a question being scored twice (timer firing alongside a manual
+  // submit). applyDelta mutates shield state in place, so a double call would
+  // double-apply the rating delta and burn two shield attempts.
+  const scoredRef = useRef(false);
+
   useEffect(() => {
     if (feedback) return; // paused between questions
     const t = setInterval(() => {
-      setTimeLeft((s) => {
-        if (s <= 1) {
-          clearInterval(t);
-          submit(null, true);
-          return 0;
-        }
-        return s - 1;
-      });
+      // Keep the updater pure — scoring happens in the effect below, not here.
+      setTimeLeft((s) => (s > 0 ? s - 1 : 0));
     }, 1000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qIndex, feedback]);
 
+  useEffect(() => {
+    if (timeLeft === 0 && !feedback) submit(null, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, feedback]);
+
+  // Working copy + the live rating folded back in. profileRef already carries the
+  // shield mutations applyDelta writes in place.
+  function buildProfile(ratingValue: number): Profile {
+    const updated: Profile = { ...profileRef.current, shields: { ...profileRef.current.shields } };
+    if (isVedic) updated.vedicRating = ratingValue;
+    else updated.ratings = { ...updated.ratings, [operationKey]: ratingValue };
+    return updated;
+  }
+
   function submit(raw: string | null, timedOut = false) {
-    if (feedback) return;
+    if (feedback || scoredRef.current) return;
+    scoredRef.current = true;
     const timeTakenMs = Date.now() - questionStart.current;
     const userAnswer = raw !== null && raw.trim() !== "" ? Number(raw.trim()) : null;
     const isCorrect = !timedOut && userAnswer === question.answer;
@@ -68,6 +85,9 @@ export default function PracticeScreen(props: Props) {
     const delta = deltaForAnswer(isCorrect, timeTakenMs, rung.parTimeSec);
     const outcome = applyDelta(profileRef.current, ratingKey, rating, delta);
     setRating(outcome.newRating);
+    // Save immediately: previously nothing reached storage until all 10 questions
+    // were answered, so quitting mid-session discarded the whole session.
+    props.onProfileChange(buildProfile(outcome.newRating));
     if (outcome.promoted) {
       setPromotedFlash(true);
       setTimeout(() => setPromotedFlash(false), 2500);
@@ -104,9 +124,7 @@ export default function PracticeScreen(props: Props) {
   function nextQuestion() {
     const done = qIndex + 1 >= QUESTIONS_PER_SESSION;
     if (done) {
-      const updated: Profile = { ...profileRef.current };
-      if (isVedic) updated.vedicRating = rating;
-      else updated.ratings = { ...updated.ratings, [operationKey]: rating };
+      const updated = buildProfile(rating);
 
       const prevRung = startRungRef.current;
       const newRung = rungIndexForRating(operationKey, rating);
@@ -119,10 +137,10 @@ export default function PracticeScreen(props: Props) {
           operationKey,
           rungIndex: prevRung,
           results,
-          ratingBefore: startRating,
+          ratingBefore: startRatingRef.current,
           ratingAfter: rating,
-          promoted: tierFor(rating).floor > tierFor(startRating).floor,
-          demoted: tierFor(rating).floor < tierFor(startRating).floor,
+          promoted: tierFor(rating).floor > tierFor(startRatingRef.current).floor,
+          demoted: tierFor(rating).floor < tierFor(startRatingRef.current).floor,
           isVedic: !!isVedic,
           suggestedTechniqueId: climbSuggestion?.id ?? null,
         },
@@ -137,6 +155,7 @@ export default function PracticeScreen(props: Props) {
     setQIndex((i) => i + 1);
     setTimeLeft(rung.parTimeSec * 2);
     questionStart.current = Date.now();
+    scoredRef.current = false;
   }
 
   const shield = profileRef.current.shields[ratingKey];
@@ -145,7 +164,7 @@ export default function PracticeScreen(props: Props) {
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={s.topRow}>
-        <Pressable onPress={props.onQuit}>
+        <Pressable onPress={() => props.onQuit(buildProfile(rating))}>
           <Text style={{ color: T.textDim }}>← Quit</Text>
         </Pressable>
         <Text style={{ color: T.textDim, fontSize: 13 }}>

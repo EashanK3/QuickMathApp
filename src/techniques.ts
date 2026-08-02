@@ -1,6 +1,12 @@
 import { Profile, Technique, TechniqueStatus } from "./types";
 
 // Access is gated by RATING, never by completing earlier techniques.
+//
+// drillRungIndex is deliberately well BELOW minRungIndex. minRungIndex is the rung
+// at which a technique becomes worth suggesting; the drill is where you first meet
+// the method, so it starts at the easiest rung on that ladder where the technique
+// still makes sense. Someone brand new to a method should land on numbers small
+// enough to actually get right.
 export const TECHNIQUES: Technique[] = [
   {
     id: "mult-by-11",
@@ -15,7 +21,7 @@ export const TECHNIQUES: Technique[] = [
       "Answer: 572.",
       "If the middle sum is 10 or more, carry into the left digit: 87 × 11 → 8, (8+7)=15, 7 → 957.",
     ],
-    drillRungIndex: 0,
+    drillRungIndex: 0, // "2x2" — already the easiest rung
   },
   {
     id: "left-to-right-add",
@@ -31,7 +37,7 @@ export const TECHNIQUES: Technique[] = [
       "Units: 6 + 9 = 15 → 8005.",
       "You always hold ONE running number, not a trail of carries.",
     ],
-    drillRungIndex: 3,
+    drillRungIndex: 1, // "3+3" — smallest pair where columns-first actually helps
   },
   {
     id: "vertically-crosswise",
@@ -48,7 +54,7 @@ export const TECHNIQUES: Technique[] = [
       "Combine: 966.",
       "For 3x3, the pattern extends: 3 cross-products in the middle. Same idea at every size.",
     ],
-    drillRungIndex: 2,
+    drillRungIndex: 0, // "2x2" — exactly the worked example (23 × 42)
   },
   {
     id: "base-method",
@@ -64,7 +70,7 @@ export const TECHNIQUES: Technique[] = [
       "Right part: (−3) × (−4) = 12.",
       "Answer: 9312.",
     ],
-    drillRungIndex: 4,
+    drillRungIndex: 0, // "2x2" — base-100 pairs like 97 × 96, not 4x4
   },
   {
     id: "squares-ending-5",
@@ -79,7 +85,7 @@ export const TECHNIQUES: Technique[] = [
       "Append 25 → 4225.",
       "Works for any size: 115² → 11 × 12 = 132 → 13225.",
     ],
-    drillRungIndex: 0,
+    drillRungIndex: 0, // "n²" 2-digit squares — already the easiest rung
   },
   {
     id: "complement-subtraction",
@@ -94,13 +100,13 @@ export const TECHNIQUES: Technique[] = [
       "Answer: 5632. No borrowing at all.",
       "For general subtraction, round the subtrahend up, then add back the difference.",
     ],
-    drillRungIndex: 2,
+    drillRungIndex: 0, // "2−2" — complements are learnable on two digits first
   },
   {
     id: "division-estimation",
     name: "Divisor rounding & correction",
     operationKey: "div",
-    minRungIndex: 3,
+    minRungIndex: 4, // "4÷2" — shifted by the new fine-grained "3÷2" rung
     ratingUnlock: 900,
     summary: "Round the divisor to a friendly number, divide, then correct the estimate.",
     steps: [
@@ -110,7 +116,7 @@ export const TECHNIQUES: Technique[] = [
       "So 219 with remainder 20... check: 22 × 219 = 4818, remainder 20.",
       "Estimate → test → correct is the loop that scales to 10÷5 digits.",
     ],
-    drillRungIndex: 3,
+    drillRungIndex: 3, // "3÷2" — the easiest rung with a roundable 2-digit divisor
   },
 ];
 

@@ -32,6 +32,7 @@ export const LADDERS: Record<OperationKey, Rung[]> = {
     { label: "2÷1", description: "2-digit ÷ 1-digit, clean", parTimeSec: 6, leftDigits: 2, rightDigits: 1 },
     { label: "3÷1", description: "3-digit ÷ 1-digit, clean", parTimeSec: 10, leftDigits: 3, rightDigits: 1 },
     { label: "3÷1r", description: "3-digit ÷ 1-digit, remainder", parTimeSec: 14, leftDigits: 3, rightDigits: 1, withRemainder: true },
+    { label: "3÷2", description: "3-digit ÷ 2-digit", parTimeSec: 18, leftDigits: 3, rightDigits: 2 },
     { label: "4÷2", description: "4-digit ÷ 2-digit", parTimeSec: 25, leftDigits: 4, rightDigits: 2 },
     { label: "5÷2", description: "5-digit ÷ 2-digit", parTimeSec: 40, leftDigits: 5, rightDigits: 2 },
     { label: "6÷3", description: "6-digit ÷ 3-digit", parTimeSec: 65, leftDigits: 6, rightDigits: 3 },
@@ -75,6 +76,12 @@ export function benchmarkFor(op: OperationKey, rungIndex: number) {
   const rung = LADDERS[op][rungIndex];
   if (!rung?.isWorldCupDiscipline) return null;
   return WORLD_CUP_BENCHMARKS.find((b) => b.operationKey === op) ?? null;
+}
+
+export function clampRung(op: OperationKey, index: number): number {
+  const last = LADDERS[op].length - 1;
+  if (!Number.isFinite(index)) return 0;
+  return Math.min(last, Math.max(0, Math.floor(index)));
 }
 
 // Rating → rung: rungs are spread evenly across 0..RATING_CEILING

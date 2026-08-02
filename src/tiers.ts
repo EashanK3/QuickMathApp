@@ -30,11 +30,37 @@ export function tierCeiling(rating: number): number {
   return idx + 1 < TIERS.length ? TIERS[idx + 1].floor : RATING_CEILING;
 }
 
-// 0..1 fill of the progress bar inside the current tier band
+// 0..1 fill of the progress bar inside the current tier band.
+// Fills toward the next tier's floor, empties toward the current tier's floor
+// (i.e. toward demotion). A promotion lands the rating on the new floor, so the
+// bar correctly resets near-empty at the new tier.
 export function tierProgress(rating: number): number {
   const floor = tierFor(rating).floor;
   const ceil = tierCeiling(rating);
-  return Math.min(1, Math.max(0, (rating - floor) / (ceil - floor)));
+  const span = ceil - floor;
+  if (!isFinite(span) || span <= 0) return 1;
+  return Math.min(1, Math.max(0, (rating - floor) / span));
+}
+
+export interface TierBarState {
+  tier: TierDef;
+  progress: number;      // 0..1
+  nextTier: TierDef | null;
+  pointsToPromotion: number | null;
+  pointsToDemotion: number | null; // null at the bottom tier
+}
+
+export function tierBarState(rating: number): TierBarState {
+  const idx = tierIndexFor(rating);
+  const tier = TIERS[idx];
+  const nextTier = idx + 1 < TIERS.length ? TIERS[idx + 1] : null;
+  return {
+    tier,
+    progress: tierProgress(rating),
+    nextTier,
+    pointsToPromotion: nextTier ? Math.max(0, nextTier.floor - rating) : null,
+    pointsToDemotion: idx > 0 ? Math.max(0, rating - tier.floor) : null,
+  };
 }
 
 export function averageRegularRating(ratings: Record<string, number>): number {

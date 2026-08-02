@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, StatusBar } from "react-native";
-import { Profile, OperationKey, SessionSummary, Technique, DEFAULT_PROFILE } from "./src/types";
+import { Profile, OperationKey, SessionSummary, Technique } from "./src/types";
 import { loadProfile, saveProfile, touchStreak } from "./src/storage";
 import HomeScreen from "./src/screens/HomeScreen";
 import PracticeScreen from "./src/screens/PracticeScreen";
@@ -11,7 +11,7 @@ import { T } from "./src/theme";
 
 type Screen =
   | { name: "home" }
-  | { name: "practice"; op: OperationKey; isVedic?: boolean; vedicRung?: number }
+  | { name: "practice"; op: OperationKey; isVedic?: boolean; vedicRung?: number; techniqueId?: string }
   | { name: "results"; summary: SessionSummary }
   | { name: "learn" }
   | { name: "technique"; technique: Technique };
@@ -53,12 +53,18 @@ export default function App() {
           operationKey={screen.op}
           isVedic={screen.isVedic}
           vedicRungIndex={screen.vedicRung}
+          // Fires after EVERY answered question so a quit / crash / backgrounding
+          // mid-session can no longer throw away the rating earned so far.
+          onProfileChange={(updated) => persist(updated)}
           onFinish={(summary, updated) => {
             persist(touchStreak(updated));
             setScreen({ name: "results", summary });
           }}
           onOpenTechnique={(t) => setScreen({ name: "technique", technique: t })}
-          onQuit={() => setScreen({ name: "home" })}
+          onQuit={(updated) => {
+            persist(touchStreak(updated));
+            setScreen({ name: "home" });
+          }}
         />
       )}
       {screen.name === "results" && (
@@ -69,6 +75,9 @@ export default function App() {
               name: "practice",
               op: screen.summary.operationKey,
               isVedic: screen.summary.isVedic,
+              // Keep a technique drill on the rung it was launched at; without this
+              // the replay silently jumps to whatever rung the Vedic rating maps to.
+              vedicRung: screen.summary.isVedic ? screen.summary.rungIndex : undefined,
             })
           }
           onHome={() => setScreen({ name: "home" })}

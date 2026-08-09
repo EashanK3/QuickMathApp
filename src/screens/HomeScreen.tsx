@@ -1,9 +1,16 @@
 import React from "react";
-import { ScrollView, View, Text, Pressable, StyleSheet } from "react-native";
+import { ScrollView, View, Text, Pressable, Animated, StyleSheet } from "react-native";
 import { Profile, OperationKey } from "../types";
 import { OPERATION_META, LADDERS, rungIndexForRating } from "../ladders";
 import { tierFor, tierBarState, averageRegularRating, SQRT_UNLOCK_AVG, EXP_UNLOCK_AVG } from "../tiers";
 import { T } from "../theme";
+import TierBadge from "../components/TierBadge";
+import ShieldStrip from "../components/ShieldStrip";
+import { usePulse } from "../hooks/usePulse";
+
+type Shield = { remaining: number; tierFloor: number } | null;
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface Props {
   profile: Profile;
@@ -26,42 +33,55 @@ export default function HomeScreen({ profile, onPractice, onLearn }: Props) {
       </Text>
 
       {REGULAR_OPS.map((op) => (
-        <RatingCard key={op} op={op} rating={profile.ratings[op]} shield={!!profile.shields[op]} onPress={() => onPractice(op)} />
+        <RatingCard key={op} op={op} rating={profile.ratings[op]} shield={profile.shields[op] ?? null} onPress={() => onPractice(op)} />
       ))}
 
-      <Pressable style={[s.card, { borderColor: T.purple + "55" }]} onPress={onLearn}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={[s.cardTitle, { color: T.purple }]}>Vedic rating</Text>
-          <Text style={[s.tierText, { color: T.purple }]}>
-            {tierFor(profile.vedicRating).icon} {tierFor(profile.vedicRating).name}
-          </Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-          <Text style={[s.rating, { color: T.purple }]}>{profile.vedicRating}</Text>
-          <Text style={{ color: T.textDim, fontSize: 13 }}>Learn section →</Text>
-        </View>
-        <TierBar rating={profile.vedicRating} shield={!!profile.shields.vedic} color={T.purple} />
-      </Pressable>
+      <VedicCard rating={profile.vedicRating} shield={profile.shields.vedic ?? null} onPress={onLearn} />
 
       <Text style={s.sectionLabel}>Advanced disciplines</Text>
 
       <LockableCard
         title={OPERATION_META.sqrt.name}
         unlocked={sqrtUnlocked}
-        unlockText={`Unlocks at avg rating ${SQRT_UNLOCK_AVG}`}
+        unlockText={`Unlocks at avg rating ${SQRT_UNLOCK_AVG} · currently ${avg}`}
         rating={profile.ratings.sqrt}
-        shield={!!profile.shields.sqrt}
+        shield={profile.shields.sqrt ?? null}
         onPress={() => onPractice("sqrt")}
       />
       <LockableCard
         title={OPERATION_META.exp.name}
         unlocked={expUnlocked}
-        unlockText={`Unlocks at avg rating ${EXP_UNLOCK_AVG}`}
+        unlockText={`Unlocks at avg rating ${EXP_UNLOCK_AVG} · currently ${avg}`}
         rating={profile.ratings.exp}
-        shield={!!profile.shields.exp}
+        shield={profile.shields.exp ?? null}
         onPress={() => onPractice("exp")}
       />
     </ScrollView>
+  );
+}
+
+function VedicCard({ rating, shield, onPress }: { rating: number; shield: Shield; onPress: () => void }) {
+  const pulse = usePulse(!!shield, 1300, false);
+  const borderColor = shield
+    ? pulse.interpolate({ inputRange: [0, 1], outputRange: ["rgba(167,139,250,0.35)", "rgba(167,139,250,0.55)"] })
+    : T.purple + "55";
+
+  return (
+    <AnimatedPressable style={[s.card, { borderColor }]} onPress={onPress}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Text style={[s.cardTitle, { color: T.purple }]}>Vedic rating</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+          <TierBadge rating={rating} size={24} family="purple" />
+          <Text style={[s.tierText, { color: T.purple }]}>{tierFor(rating).name}</Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+        <Text style={[s.rating, { color: T.purple }]}>{rating}</Text>
+        <Text style={{ color: T.textDim, fontSize: 13 }}>Learn section →</Text>
+      </View>
+      {shield && <ShieldStrip remaining={shield.remaining} caption="Land a correct answer to cement the rank" pulse={false} />}
+      <TierBar rating={rating} shield={!!shield} color={T.purple} />
+    </AnimatedPressable>
   );
 }
 
@@ -97,28 +117,34 @@ function TierBar({ rating, shield, color = T.gold }: { rating: number; shield: b
   );
 }
 
-function RatingCard({ op, rating, shield, onPress }: { op: OperationKey; rating: number; shield: boolean; onPress: () => void }) {
+function RatingCard({ op, rating, shield, onPress }: { op: OperationKey; rating: number; shield: Shield; onPress: () => void }) {
   const tier = tierFor(rating);
   const rung = LADDERS[op][rungIndexForRating(op, rating)];
+  const pulse = usePulse(!!shield, 1300, false);
+  const borderColor = shield
+    ? pulse.interpolate({ inputRange: [0, 1], outputRange: ["rgba(229,83,75,0.35)", "rgba(229,83,75,0.55)"] })
+    : T.border;
+
   return (
-    <Pressable style={s.card} onPress={onPress}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+    <AnimatedPressable style={[s.card, { borderColor }]} onPress={onPress}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <Text style={s.cardTitle}>{OPERATION_META[op].name}</Text>
-        <Text style={s.tierText}>
-          {tier.icon} {tier.name}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+          <TierBadge rating={rating} size={26} />
+          <Text style={s.tierText}>{tier.name}</Text>
+        </View>
       </View>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
         <Text style={s.rating}>{rating}</Text>
         <Text style={{ color: T.textFaint, fontSize: 12 }}>current rung: {rung.description}</Text>
       </View>
-      <TierBar rating={rating} shield={shield} />
-      {shield && <Text style={s.shieldText}>Promotion shield active — land a correct answer to cement the rank</Text>}
-    </Pressable>
+      {shield && <ShieldStrip remaining={shield.remaining} caption="Land a correct answer to cement the rank" pulse={false} />}
+      <TierBar rating={rating} shield={!!shield} />
+    </AnimatedPressable>
   );
 }
 
-function LockableCard(props: { title: string; unlocked: boolean; unlockText: string; rating: number; shield: boolean; onPress: () => void }) {
+function LockableCard(props: { title: string; unlocked: boolean; unlockText: string; rating: number; shield: Shield; onPress: () => void }) {
   if (!props.unlocked) {
     return (
       <View style={[s.card, { opacity: 0.55 }]}>
@@ -128,16 +154,29 @@ function LockableCard(props: { title: string; unlocked: boolean; unlockText: str
     );
   }
   const tier = tierFor(props.rating);
+  const pulse = usePulse(!!props.shield, 1300, false);
+  const borderColor = props.shield
+    ? pulse.interpolate({ inputRange: [0, 1], outputRange: ["rgba(229,83,75,0.35)", "rgba(229,83,75,0.55)"] })
+    : T.border;
+
   return (
-    <Pressable style={s.card} onPress={props.onPress}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={s.cardTitle}>{props.title}</Text>
-        <Text style={s.tierText}>{tier.icon} {tier.name}</Text>
+    <AnimatedPressable style={[s.card, { borderColor }]} onPress={props.onPress}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={s.cardTitle}>{props.title}</Text>
+          <View style={s.unlockedPill}>
+            <Text style={s.unlockedPillText}>UNLOCKED</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+          <TierBadge rating={props.rating} size={26} />
+          <Text style={s.tierText}>{tier.name}</Text>
+        </View>
       </View>
       <Text style={s.rating}>{props.rating}</Text>
-      <TierBar rating={props.rating} shield={props.shield} />
-      {props.shield && <Text style={s.shieldText}>Promotion shield active</Text>}
-    </Pressable>
+      {props.shield && <ShieldStrip remaining={props.shield.remaining} caption="Promotion shield active" pulse={false} />}
+      <TierBar rating={props.rating} shield={!!props.shield} />
+    </AnimatedPressable>
   );
 }
 
@@ -167,5 +206,12 @@ const s = StyleSheet.create({
   },
   barFill: { height: 8, backgroundColor: T.gold, borderRadius: 4 },
   barCaption: { color: T.textFaint, fontSize: 11, marginTop: 5 },
-  shieldText: { color: T.gold, fontSize: 11, marginTop: 8 },
+  unlockedPill: {
+    borderWidth: 1,
+    borderColor: T.gold + "66",
+    borderRadius: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+  },
+  unlockedPillText: { color: T.gold, fontSize: 9, letterSpacing: 0.4, fontWeight: "600" },
 });

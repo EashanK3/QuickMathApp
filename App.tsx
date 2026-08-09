@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, StatusBar } from "react-native";
+import { View, ActivityIndicator, StatusBar, Pressable, Text, StyleSheet } from "react-native";
 import { Profile, OperationKey, SessionSummary, Technique } from "./src/types";
-import { loadProfile, saveProfile, touchStreak } from "./src/storage";
+import { loadProfile, saveProfile, touchStreak, appendSessionRecord, sessionRecordFromSummary } from "./src/storage";
 import HomeScreen from "./src/screens/HomeScreen";
 import PracticeScreen from "./src/screens/PracticeScreen";
 import ResultsScreen from "./src/screens/ResultsScreen";
 import LearnScreen from "./src/screens/LearnScreen";
 import TechniqueScreen from "./src/screens/TechniqueScreen";
+import ProfileScreen from "./src/screens/ProfileScreen";
+import FriendModeScreen from "./src/screens/FriendModeScreen";
+import NavDrawer, { DrawerDestination } from "./src/components/NavDrawer";
 import { T } from "./src/theme";
 
 type Screen =
@@ -14,11 +17,21 @@ type Screen =
   | { name: "practice"; op: OperationKey; isVedic?: boolean; vedicRung?: number; techniqueId?: string }
   | { name: "results"; summary: SessionSummary }
   | { name: "learn" }
-  | { name: "technique"; technique: Technique };
+  | { name: "technique"; technique: Technique }
+  | { name: "profile" }
+  | { name: "friendMode" };
+
+// Drawer destinations are a subset of Screen — this maps one to the other.
+function drawerDestinationFor(screen: Screen): DrawerDestination {
+  if (screen.name === "profile") return "profile";
+  if (screen.name === "friendMode") return "friendMode";
+  return "home";
+}
 
 export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: "home" });
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     loadProfile().then(setProfile);
@@ -57,7 +70,8 @@ export default function App() {
           // mid-session can no longer throw away the rating earned so far.
           onProfileChange={(updated) => persist(updated)}
           onFinish={(summary, updated) => {
-            persist(touchStreak(updated));
+            const withHistory = appendSessionRecord(updated, sessionRecordFromSummary(summary));
+            persist(touchStreak(withHistory));
             setScreen({ name: "results", summary });
           }}
           onOpenTechnique={(t) => setScreen({ name: "technique", technique: t })}
@@ -112,6 +126,40 @@ export default function App() {
           onBack={() => setScreen({ name: "learn" })}
         />
       )}
+      {screen.name === "profile" && <ProfileScreen profile={profile} onBack={() => setScreen({ name: "home" })} />}
+      {screen.name === "friendMode" && (
+        <FriendModeScreen profile={profile} onBack={() => setScreen({ name: "home" })} />
+      )}
+
+      {/* Hidden mid-question — a stray tap shouldn't back out of a timed session. */}
+      {screen.name !== "practice" && (
+        <Pressable style={s.hamburger} onPress={() => setDrawerOpen(true)} hitSlop={10}>
+          <Text style={{ color: T.text, fontSize: 20 }}>☰</Text>
+        </Pressable>
+      )}
+      <NavDrawer
+        visible={drawerOpen}
+        current={drawerDestinationFor(screen)}
+        onClose={() => setDrawerOpen(false)}
+        onNavigate={(dest) => {
+          setDrawerOpen(false);
+          if (dest === "profile") setScreen({ name: "profile" });
+          else if (dest === "friendMode") setScreen({ name: "friendMode" });
+          else setScreen({ name: "home" });
+        }}
+      />
     </View>
   );
 }
+
+const s = StyleSheet.create({
+  hamburger: {
+    position: "absolute",
+    top: 56,
+    right: 20,
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

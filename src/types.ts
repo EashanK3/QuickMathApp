@@ -61,6 +61,25 @@ export interface SessionSummary {
   suggestedTechniqueId: string | null;
 }
 
+// Lightweight per-session record for the stats page and pattern-recognition
+// summaries. Deliberately NOT the full QuestionResult[] — that would grow
+// AsyncStorage unbounded. errorCounts is enough to spot "which operation +
+// which mistake type keeps recurring" without keeping every question ever asked.
+export interface SessionRecord {
+  timestamp: number; // Date.now() at session end
+  operationKey: OperationKey;
+  rungIndex: number;
+  isVedic: boolean;
+  ratingBefore: number;
+  ratingAfter: number;
+  correctCount: number;
+  totalCount: number;
+  avgTimeMs: number;
+  errorCounts: Partial<Record<ErrorType, number>>;
+}
+
+export const MAX_HISTORY = 200;
+
 export interface Profile {
   ratings: Record<OperationKey, number>;
   vedicRating: number;
@@ -69,6 +88,8 @@ export interface Profile {
   techniqueProgress: Record<string, TechniqueStatus>;
   streakCount: number;
   lastPracticeDay: string | null;
+  // newest last; capped at MAX_HISTORY, oldest dropped on overflow
+  history: SessionRecord[];
 }
 
 export const DEFAULT_PROFILE: Profile = {
@@ -78,4 +99,5 @@ export const DEFAULT_PROFILE: Profile = {
   techniqueProgress: {},
   streakCount: 0,
   lastPracticeDay: null,
+  history: [],
 };

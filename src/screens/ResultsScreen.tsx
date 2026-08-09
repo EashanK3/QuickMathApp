@@ -6,6 +6,7 @@ import { ERROR_LABELS } from "../questions";
 import { TECHNIQUES } from "../techniques";
 import { tierFor } from "../tiers";
 import { T } from "../theme";
+import TierBadge from "../components/TierBadge";
 
 interface Props {
   summary: SessionSummary;
@@ -51,10 +52,13 @@ export default function ResultsScreen({ summary, onPlayAgain, onHome, onOpenTech
           {delta >= 0 ? "+" : ""}{delta}
         </Text>
       </View>
-      <Text style={{ color: T.gold, fontSize: 13, marginTop: 2 }}>
-        {tier.icon} {tier.name}
-        {summary.promoted ? "  · promoted!" : summary.demoted ? "  · demoted" : ""}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <TierBadge rating={ratingAfter} size={36} family={summary.isVedic ? "purple" : "gold"} />
+        <Text style={{ color: summary.isVedic ? T.purple : T.gold, fontSize: 14, fontWeight: "700" }}>
+          {tier.name}
+          {summary.promoted ? "  · promoted!" : summary.demoted ? "  · demoted" : ""}
+        </Text>
+      </View>
 
       <View style={s.statRow}>
         <View style={s.statCard}>

@@ -1,4 +1,35 @@
 {
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/easha/AppData/Local/npm-cache/_npx/**)",
+      "Bash(xargs grep -l \"CLAUDE.md\")",
+      "Bash(grep -rl \"CLAUDE.md\\\\|CLAUDE\\\\.md\\\\|Project Purpose\\\\|Update the sections below\" \"C:\\\\Users\\\\easha\\\\AppData\\\\Local\\\\npm-cache\\\\_npx\\\\5606f1555d02ef53\\\\node_modules\\\\skills\" 2>/dev/null | head -20)",
+      "Read(//c/Users/easha/AppData/Local/npm-cache/_npx/5606f1555d02ef53/node_modules/skills/**)",
+      "Bash(grep -rl \"Update the sections below as the project evolves\" \"C:\\\\Users\\\\easha\\\\AppData\\\\Local\\\\npm-cache\" \"C:\\\\Users\\\\easha\\\\QuickMathApp\\\\node_modules\" \"$HOME/AppData/Roaming/npm\" 2>/dev/null | head -20)",
+      "Read(//c/Users/easha/AppData/Local/npm-cache/**)",
+      "Bash(grep -rl \"CLAUDE\" \"C:\\\\Users\\\\easha\\\\AppData\\\\Local\\\\npm-cache\\\\_npx\\\\5606f1555d02ef53\\\\node_modules\\\\skills\" 2>/dev/null | head -20)",
+      "Bash(grep -n \"CLAUDE\" \"C:\\\\Users\\\\easha\\\\AppData\\\\Local\\\\npm-cache\\\\_npx\\\\5606f1555d02ef53\\\\node_modules\\\\skills\\\\dist\\\\cli.mjs\" | head -40)",
+      "Read(//c/Users/easha/AppData/Local/npm-cache/_npx/5606f1555d02ef53/node_modules/skills/dist/**)",
+      "Bash(grep -n \"CLAUDE\\\\|writeFile\\\\|Project Purpose\" \"C:\\\\Users\\\\easha\\\\AppData\\\\Local\\\\npm-cache\\\\_npx\\\\5606f1555d02ef53\\\\node_modules\\\\skills\\\\dist\\\\_chunks\\\\libs\\\\@vercel\\\\detect-agent.mjs\" | head -40)",
+      "Read(//c/Users/easha/AppData/Local/npm-cache/_npx/5606f1555d02ef53/node_modules/skills/dist/_chunks/libs/@vercel/**)",
+      "Bash(echo \"typecheck exit: $?\")",
+      "Bash(taskkill //PID 21608 //F)",
+      "Bash(taskkill //PID 27380 //F)",
+      "Bash(find 'C:\\\\Users\\\\easha/.claude' -maxdepth 2 -iname *plugin* -o -iname *marketplace*)",
+      "Bash(where.exe claude *)",
+      "Bash(npm ls *)",
+      "Read(//c/Users/easha/AppData/Roaming/npm/**)",
+      "Bash(ipconfig)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://192.168.1.169:8081/)",
+      "Bash(curl -s -H \"Accept: application/expo+json,application/json\" http://192.168.1.169:8081/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8081/)",
+      "Bash(node -e ' *)",
+      "Bash(node gen-qr.js)",
+      "Bash(taskkill //PID 1536 //F)",
+      "Bash(where.exe ollama *)",
+      "Bash(curl -s -o /dev/null -w \"Ollama HTTP %{http_code}\\\\n\" http://localhost:11434)"
+    ]
+  },
   "enabledPlugins": {
     "expo@claude-plugins-official": true
   }

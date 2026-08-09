@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Profile, DEFAULT_PROFILE } from "./types";
+import { ErrorType, MAX_HISTORY, Profile, DEFAULT_PROFILE, SessionRecord, SessionSummary } from "./types";
 
 const KEY = "quickmath.profile.v1";
 
@@ -13,6 +13,7 @@ export function freshProfile(): Profile {
     ratings: { ...DEFAULT_PROFILE.ratings },
     shields: { ...DEFAULT_PROFILE.shields },
     techniqueProgress: { ...DEFAULT_PROFILE.techniqueProgress },
+    history: [],
   };
 }
 
@@ -29,10 +30,44 @@ export async function loadProfile(): Promise<Profile> {
       vedicRating: parsed.vedicRating ?? DEFAULT_PROFILE.vedicRating,
       shields: parsed.shields ?? {},
       techniqueProgress: parsed.techniqueProgress ?? {},
+      // profiles saved before history existed simply have none yet
+      history: Array.isArray(parsed.history) ? parsed.history : [],
     };
   } catch {
     return freshProfile();
   }
+}
+
+export function sessionRecordFromSummary(summary: SessionSummary): SessionRecord {
+  const errorCounts: Partial<Record<ErrorType, number>> = {};
+  let totalTimeMs = 0;
+  let correctCount = 0;
+  for (const r of summary.results) {
+    totalTimeMs += r.timeTakenMs;
+    if (r.isCorrect) correctCount++;
+    else errorCounts[r.errorType] = (errorCounts[r.errorType] ?? 0) + 1;
+  }
+  return {
+    timestamp: Date.now(),
+    operationKey: summary.operationKey,
+    rungIndex: summary.rungIndex,
+    isVedic: summary.isVedic,
+    ratingBefore: summary.ratingBefore,
+    ratingAfter: summary.ratingAfter,
+    correctCount,
+    totalCount: summary.results.length,
+    avgTimeMs: summary.results.length ? totalTimeMs / summary.results.length : 0,
+    errorCounts,
+  };
+}
+
+// Appends a session, dropping the oldest entries beyond MAX_HISTORY.
+export function appendSessionRecord(profile: Profile, record: SessionRecord): Profile {
+  const next = [...profile.history, record];
+  return {
+    ...profile,
+    history: next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next,
+  };
 }
 
 // Writes are serialized: saves fire from render callbacks (every answered

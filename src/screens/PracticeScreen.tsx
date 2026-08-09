@@ -1,12 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, Pressable, Animated, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
 import { Profile, OperationKey, QuestionResult, SessionSummary, Technique } from "../types";
 import { LADDERS, rungIndexForRating, clampRung, OPERATION_META } from "../ladders";
 import { generateQuestion, classifyError, GeneratedQuestion } from "../questions";
 import { deltaForAnswer, applyDelta } from "../rating";
 import { suggestionForMiss, suggestionForNewRung } from "../techniques";
-import { tierFor } from "../tiers";
+import { TIERS, tierFor, tierIndexFor } from "../tiers";
 import { T } from "../theme";
+import ShieldStrip from "../components/ShieldStrip";
+import { usePulse } from "../hooks/usePulse";
+import { useAICall } from "../hooks/useAICall";
+import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings } from "../aiSettings";
+import { explainMistake } from "../ai/mistakeSummary";
 
 const QUESTIONS_PER_SESSION = 10;
 
@@ -45,6 +50,21 @@ export default function PracticeScreen(props: Props) {
   const [promotedFlash, setPromotedFlash] = useState(false);
   const questionStart = useRef(Date.now());
   const profileRef = useRef<Profile>({ ...profile, shields: { ...profile.shields } });
+  const lastResultRef = useRef<QuestionResult | null>(null);
+
+  const [aiSettings, setAiSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS);
+  useEffect(() => {
+    loadAISettings().then(setAiSettings);
+  }, []);
+  const aiExplain = useAICall(() => {
+    if (!lastResultRef.current) return Promise.reject(new Error("No mistake to explain."));
+    return explainMistake(
+      { host: aiSettings.ollamaHost, model: aiSettings.model },
+      operationKey,
+      rung,
+      lastResultRef.current
+    );
+  });
 
   // Guards against a question being scored twice (timer firing alongside a manual
   // submit). applyDelta mutates shield state in place, so a double call would
@@ -102,6 +122,7 @@ export default function PracticeScreen(props: Props) {
       errorType,
     };
     setResults((r) => [...r, result]);
+    lastResultRef.current = result;
 
     // Persistent nudge: fires on EVERY relevant miss until the lesson is completed
     if (!isCorrect && !isVedic) {
@@ -156,10 +177,20 @@ export default function PracticeScreen(props: Props) {
     setTimeLeft(rung.parTimeSec * 2);
     questionStart.current = Date.now();
     scoredRef.current = false;
+    aiExplain.reset();
   }
 
   const shield = profileRef.current.shields[ratingKey];
   const correctCount = results.filter((r) => r.isCorrect).length;
+
+  // The most tense moment in the app: one wrong answer away from a real
+  // demotion, with the clock about to run out. The expanding-ring pulse on
+  // the timer is deliberately faster (1.4s) than the shield strip's own
+  // pulse (2.2-2.6s) so it reads as more urgent.
+  const urgent = !!shield && shield.remaining === 1 && timeLeft <= 5 && !feedback;
+  const urgentPulse = usePulse(urgent, 700, true);
+  const ringScale = urgentPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] });
+  const ringOpacity = urgentPulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
 
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -181,14 +212,37 @@ export default function PracticeScreen(props: Props) {
         </View>
       )}
       {shield && !promotedFlash && (
-        <Text style={{ color: T.goldDim, fontSize: 11, textAlign: "center", marginTop: 6 }}>
-          Shield: {shield.remaining} attempt{shield.remaining !== 1 ? "s" : ""} left to land a correct answer
-        </Text>
+        <ShieldStrip
+          remaining={shield.remaining}
+          label={shield.remaining === 1 ? "Shield — last chance" : "Promotion shield"}
+          caption={
+            shield.remaining === 1
+              ? `1 attempt left — one more miss demotes to ${TIERS[Math.max(0, tierIndexFor(shield.tierFloor) - 1)].name}`
+              : `${shield.remaining} attempts left to land a correct answer`
+          }
+        />
       )}
 
       <View style={s.center}>
-        <View style={s.timerCircle}>
-          <Text style={{ color: timeLeft <= 5 ? T.red : T.text, fontSize: 20, fontWeight: "600" }}>{timeLeft}s</Text>
+        <View style={{ alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
+          {urgent && (
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                width: 68,
+                height: 68,
+                borderRadius: 34,
+                borderWidth: 2,
+                borderColor: T.red,
+                opacity: ringOpacity,
+                transform: [{ scale: ringScale }],
+              }}
+            />
+          )}
+          <View style={[s.timerCircle, { marginBottom: 0 }]}>
+            <Text style={{ color: timeLeft <= 5 ? T.red : T.text, fontSize: 20, fontWeight: "600" }}>{timeLeft}s</Text>
+          </View>
         </View>
 
         <Text style={s.prompt}>{question.prompt}</Text>
@@ -214,6 +268,23 @@ export default function PracticeScreen(props: Props) {
             <Text style={{ color: feedback.correct ? T.green : T.red, fontSize: 16, marginTop: 8 }}>
               {feedback.text}
             </Text>
+            {!feedback.correct && (
+              <View style={{ marginTop: 10, alignItems: "center", maxWidth: 300 }}>
+                {!aiExplain.result && !aiExplain.error && (
+                  <Pressable onPress={aiExplain.run} disabled={aiExplain.loading}>
+                    <Text style={{ color: T.accent, fontSize: 13 }}>
+                      {aiExplain.loading ? "Asking your AI coach…" : "Why did I get this wrong? (AI) →"}
+                    </Text>
+                  </Pressable>
+                )}
+                {aiExplain.error && <Text style={s.aiError}>{aiExplain.error}</Text>}
+                {aiExplain.result && (
+                  <View style={s.aiCard}>
+                    <Text style={s.aiCardText}>{aiExplain.result}</Text>
+                  </View>
+                )}
+              </View>
+            )}
             {nudge && (
               <Pressable style={s.nudge} onPress={() => props.onOpenTechnique(nudge)}>
                 <Text style={{ color: T.purple, fontSize: 13 }}>
@@ -289,4 +360,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
   },
   footer: { color: T.textFaint, fontSize: 12, textAlign: "center", paddingBottom: 24 },
+  aiCard: {
+    marginTop: 8,
+    backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.accent + "44",
+    borderRadius: 12,
+    padding: 14,
+  },
+  aiCardText: { color: T.text, fontSize: 13, lineHeight: 19 },
+  aiError: { color: T.textFaint, fontSize: 12, textAlign: "center" },
 });

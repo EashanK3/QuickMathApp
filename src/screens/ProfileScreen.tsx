@@ -5,9 +5,10 @@ import { OPERATION_META, LADDERS } from "../ladders";
 import { ERROR_LABELS } from "../questions";
 import { T } from "../theme";
 import TierBadge from "../components/TierBadge";
-import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings, saveAISettings } from "../aiSettings";
+import { AISettings, DEFAULT_AI_SETTINGS, autoOllamaHost, effectiveOllamaHost, loadAISettings, saveAISettings } from "../aiSettings";
 import { summarizePatterns } from "../ai/patternSummary";
 import { useAICall } from "../hooks/useAICall";
+import { useOllamaReachable } from "../hooks/useOllamaReachable";
 
 interface Props {
   profile: Profile;
@@ -43,8 +44,10 @@ export default function ProfileScreen({ profile, onBack }: Props) {
     });
   }, []);
 
+  const coachAvailable = useOllamaReachable(effectiveOllamaHost(aiSettings));
+
   const patternSummary = useAICall(() =>
-    summarizePatterns({ host: aiSettings.ollamaHost, model: aiSettings.model }, profile)
+    summarizePatterns({ host: effectiveOllamaHost(aiSettings), model: aiSettings.model }, profile)
   );
 
   function saveHost() {
@@ -86,6 +89,9 @@ export default function ProfileScreen({ profile, onBack }: Props) {
         </View>
       </View>
 
+      {/* Hidden when no Ollama server answers, e.g. on a different network. */}
+      {coachAvailable && (
+      <>
       <Text style={s.sectionLabel}>AI coach (local, via Ollama)</Text>
       <View style={s.aiSection}>
         <Text style={s.aiHostLabel}>Ollama server address</Text>
@@ -94,7 +100,7 @@ export default function ProfileScreen({ profile, onBack }: Props) {
             style={s.hostInput}
             value={hostInput}
             onChangeText={setHostInput}
-            placeholder="http://192.168.1.x:11434"
+            placeholder={`Auto: ${autoOllamaHost()}`}
             placeholderTextColor={T.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
@@ -127,6 +133,8 @@ export default function ProfileScreen({ profile, onBack }: Props) {
           </>
         )}
       </View>
+      </>
+      )}
 
       <Text style={s.sectionLabel}>Ratings</Text>
       {OPS.map((op) => (

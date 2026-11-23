@@ -1,0 +1,26 @@
+# Dependabot opens a pull request whenever a newer version comes out, and the
+# workflows run on that pull request so breakage shows up before merging.
+#
+# Expo-managed packages (expo, react, react-native, expo-*, etc.) are left out
+# on purpose: they must move together with the Expo SDK, using
+# `npx expo install expo@^<new SDK> --fix`. The daily "Version checks"
+# workflow (check:expo) flags when that's needed.
+version: 2
+updates:
+  # Actions used in .github/workflows (checkout, setup-node, Pages deploy)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # npm packages Expo doesn't manage
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: "@supabase/supabase-js"
+      - dependency-name: "react-native-url-polyfill"

@@ -2,7 +2,7 @@ import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { T } from "../theme";
 
-export type DrawerDestination = "home" | "profile" | "friendMode";
+export type DrawerDestination = "home" | "profile" | "friendMode" | "account";
 
 interface Props {
   visible: boolean;
@@ -15,6 +15,7 @@ const LINKS: { key: DrawerDestination; label: string; icon: string }[] = [
   { key: "home", label: "Home", icon: "⌂" },
   { key: "profile", label: "Profile", icon: "◈" },
   { key: "friendMode", label: "Friend mode", icon: "⚔" },
+  { key: "account", label: "Account", icon: "◉" },
 ];
 
 export default function NavDrawer({ visible, onClose, onNavigate, current }: Props) {

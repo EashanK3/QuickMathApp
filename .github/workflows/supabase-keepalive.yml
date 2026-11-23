@@ -1,0 +1,40 @@
+# Keeps the Supabase project in use so the free plan doesn't pause it, and
+# fails (GitHub emails the repo owner) if Supabase stops answering.
+# The project URL and public anon key are read from src/supabaseConfig.ts, so
+# this follows the app automatically when that file changes.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: "0 15 * * *" # daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query the Supabase database
+        run: |
+          set -eu
+          url=$(grep -o 'https://[a-z0-9]*\.supabase\.co' src/supabaseConfig.ts | head -n 1)
+          key=$(grep -o 'eyJ[A-Za-z0-9._-]*' src/supabaseConfig.ts | head -n 1)
+          if [ -z "$url" ] || [ -z "$key" ]; then
+            echo "Couldn't find the Supabase URL or anon key in src/supabaseConfig.ts"
+            exit 1
+          fi
+          echo "Pinging $url"
+          # A real database read (one row from the friend-mode rooms table),
+          # so Supabase counts the project as active.
+          status=$(curl -s -o response.txt -w '%{http_code}' --max-time 30 \
+            "$url/rest/v1/rooms?select=id&limit=1" \
+            -H "apikey: $key" -H "Authorization: Bearer $key") || true
+          echo "HTTP $status"
+          cat response.txt 2>/dev/null || true
+          if [ "$status" != "200" ]; then
+            echo "::error::Supabase did not answer normally (HTTP $status). The project may be paused, deleted, or missing the rooms table — check the Supabase dashboard."
+            exit 1
+          fi

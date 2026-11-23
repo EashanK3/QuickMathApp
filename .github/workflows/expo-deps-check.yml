@@ -1,0 +1,41 @@
+# Daily checks of everything in the project that depends on an outside
+# version:
+#   - check:expo      Expo SDK vs. the store Expo Go app, and every
+#                     Expo-managed package vs. the installed SDK
+#   - check:versions  TypeScript/React types vs. the SDK, new major versions of
+#                     non-Expo npm packages, the Node.js version these
+#                     workflows use, and the GitHub Actions they use
+# Both steps always run. A failed run emails the repo owner by default.
+# (The Supabase project itself is checked by supabase-keepalive.yml.)
+name: Version checks
+
+on:
+  schedule:
+    - cron: "0 14 * * *" # daily
+  push:
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/* # newest supported Node, so it never goes end of life
+          cache: npm
+      - run: npm ci
+      - name: Expo SDK and Expo-managed packages
+        run: npm run check:expo
+      - name: Other versions (TypeScript, npm packages, Node.js, GitHub Actions)
+        if: always()
+        run: npm run check:versions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

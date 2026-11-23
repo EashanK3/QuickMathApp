@@ -17,24 +17,44 @@ export function freshProfile(): Profile {
   };
 }
 
+// When the local profile was last changed (ms since epoch). Used to decide
+// whether this device or the account's cloud copy is newer.
+const UPDATED_KEY = "quickmath.profileUpdatedAt.v1";
+
+// Merges a saved profile (local or from the cloud) over the defaults, so new
+// fields survive app updates.
+export function normalizeProfile(parsed: any): Profile {
+  if (!parsed || typeof parsed !== "object") return freshProfile();
+  return {
+    ...freshProfile(),
+    ...parsed,
+    ratings: { ...DEFAULT_PROFILE.ratings, ...(parsed.ratings ?? {}) },
+    vedicRating: parsed.vedicRating ?? DEFAULT_PROFILE.vedicRating,
+    shields: parsed.shields ?? {},
+    techniqueProgress: parsed.techniqueProgress ?? {},
+    // profiles saved before history existed simply have none yet
+    history: Array.isArray(parsed.history) ? parsed.history : [],
+  };
+}
+
 export async function loadProfile(): Promise<Profile> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
     if (!raw) return freshProfile();
-    const parsed = JSON.parse(raw);
-    // merge over defaults so new fields survive app updates
-    return {
-      ...freshProfile(),
-      ...parsed,
-      ratings: { ...DEFAULT_PROFILE.ratings, ...(parsed.ratings ?? {}) },
-      vedicRating: parsed.vedicRating ?? DEFAULT_PROFILE.vedicRating,
-      shields: parsed.shields ?? {},
-      techniqueProgress: parsed.techniqueProgress ?? {},
-      // profiles saved before history existed simply have none yet
-      history: Array.isArray(parsed.history) ? parsed.history : [],
-    };
+    return normalizeProfile(JSON.parse(raw));
   } catch {
     return freshProfile();
+  }
+}
+
+// 0 means "never saved on this device".
+export async function loadProfileUpdatedAt(): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(UPDATED_KEY);
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -75,11 +95,12 @@ export function appendSessionRecord(profile: Profile, record: SessionRecord): Pr
 // older profile land after a newer one and silently roll back the rating.
 let writeChain: Promise<void> = Promise.resolve();
 
-export function saveProfile(profile: Profile): Promise<void> {
+export function saveProfile(profile: Profile, updatedAt: number = Date.now()): Promise<void> {
   const snapshot = JSON.stringify(profile);
   writeChain = writeChain.then(async () => {
     try {
       await AsyncStorage.setItem(KEY, snapshot);
+      await AsyncStorage.setItem(UPDATED_KEY, String(updatedAt));
     } catch {
       // non-fatal: ratings just won't persist this session
     }

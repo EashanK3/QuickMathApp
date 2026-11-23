@@ -88,3 +88,28 @@ grant select, insert on rooms, room_players, room_questions, room_answers to ano
 alter publication supabase_realtime add table room_players;
 alter publication supabase_realtime add table room_questions;
 alter publication supabase_realtime add table room_answers;
+
+-- Accounts (optional email + password sign-in via Supabase Auth).
+-- One row per account holding that player's whole profile (ratings, shields,
+-- technique progress, history) as JSON. Signed-out players never touch this
+-- table; RLS lets a signed-in player read and write only their own row.
+create table if not exists profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  data jsonb not null,
+  updated_ms bigint not null,  -- client clock (ms) of the last change; newer copy wins on launch
+  updated_at timestamptz not null default now()
+);
+
+alter table profiles enable row level security;
+
+drop policy if exists "players read own profile" on profiles;
+create policy "players read own profile" on profiles for select to authenticated
+  using (auth.uid() = user_id);
+drop policy if exists "players create own profile" on profiles;
+create policy "players create own profile" on profiles for insert to authenticated
+  with check (auth.uid() = user_id);
+drop policy if exists "players update own profile" on profiles;
+create policy "players update own profile" on profiles for update to authenticated
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+grant select, insert, update on profiles to authenticated;

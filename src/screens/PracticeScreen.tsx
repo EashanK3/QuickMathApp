@@ -10,7 +10,8 @@ import { T } from "../theme";
 import ShieldStrip from "../components/ShieldStrip";
 import { usePulse } from "../hooks/usePulse";
 import { useAICall } from "../hooks/useAICall";
-import { AISettings, DEFAULT_AI_SETTINGS, loadAISettings } from "../aiSettings";
+import { useOllamaReachable } from "../hooks/useOllamaReachable";
+import { AISettings, DEFAULT_AI_SETTINGS, effectiveOllamaHost, loadAISettings } from "../aiSettings";
 import { explainMistake } from "../ai/mistakeSummary";
 
 const QUESTIONS_PER_SESSION = 10;
@@ -56,10 +57,11 @@ export default function PracticeScreen(props: Props) {
   useEffect(() => {
     loadAISettings().then(setAiSettings);
   }, []);
+  const coachAvailable = useOllamaReachable(effectiveOllamaHost(aiSettings));
   const aiExplain = useAICall(() => {
     if (!lastResultRef.current) return Promise.reject(new Error("No mistake to explain."));
     return explainMistake(
-      { host: aiSettings.ollamaHost, model: aiSettings.model },
+      { host: effectiveOllamaHost(aiSettings), model: aiSettings.model },
       operationKey,
       rung,
       lastResultRef.current
@@ -268,7 +270,7 @@ export default function PracticeScreen(props: Props) {
             <Text style={{ color: feedback.correct ? T.green : T.red, fontSize: 16, marginTop: 8 }}>
               {feedback.text}
             </Text>
-            {!feedback.correct && (
+            {!feedback.correct && coachAvailable && (
               <View style={{ marginTop: 10, alignItems: "center", maxWidth: 300 }}>
                 {!aiExplain.result && !aiExplain.error && (
                   <Pressable onPress={aiExplain.run} disabled={aiExplain.loading}>

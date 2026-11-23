@@ -7,6 +7,22 @@ export interface OllamaConfig {
 }
 
 const TIMEOUT_MS = 30000;
+const REACHABLE_TIMEOUT_MS = 3000;
+
+// Quick check that an Ollama server answers at `host`. Used to hide the AI
+// coach for players who aren't on the same network as the Ollama computer.
+export async function isOllamaReachable(host: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REACHABLE_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${host.replace(/\/$/, "")}/api/tags`, { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export async function ollamaGenerate(config: OllamaConfig, prompt: string, system: string): Promise<string> {
   const controller = new AbortController();
